@@ -1,0 +1,15 @@
+[build]
+target = "thumbv7m-none-eabi" # STM32F103C8T6 - Cortex-M3
+
+[target.thumbv7m-none-eabi]
+rustflags = [
+  "-C", "link-arg=-Tdefmt.x",
+  "-C", "link-arg=-Tlink.x",
+  "-C", "link-arg=-L.", # Add root dir to linker path to pick up memory.x
+]
+
+# Add `--connect-under-reset` flag if ST-LINK is wired to the STM's reset pin
+runner = "probe-rs run --chip STM32F103C8"
+
+[env]
+DEFMT_LOG = "debug"

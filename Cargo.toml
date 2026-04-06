@@ -1,0 +1,56 @@
+[package]
+name = "canbus-display"
+version = "0.0.1"
+edition = "2024"
+
+[[bin]]
+name = "canbus-display"
+path = "src/main.rs"
+
+[dependencies]
+cortex-m = {
+  version = "0.7",
+  features = [
+    "inline-asm",
+    "critical-section-single-core",
+  ]
+}
+cortex-m-rt = "0.7"
+defmt       = "1"
+defmt-rtt   = "1"
+embassy-executor = {
+  git = "https://github.com/embassy-rs/embassy",
+  version = "0.10.0",
+  features = [
+    "platform-cortex-m",
+    "executor-thread",
+    "defmt"
+  ]
+}
+embassy-stm32 = {
+  git = "https://github.com/embassy-rs/embassy",
+  version = "0.6.0",
+  features = [
+    "defmt",
+    "stm32f103c8",
+    "time-driver-tim2",
+  ]
+}
+embassy-time = {
+  git = "https://github.com/embassy-rs/embassy",
+  version = "0.5.1",
+  features = [
+    "defmt",
+    "defmt-timestamp-uptime"
+  ]
+}
+embedded-graphics = "0.8"
+embedded-hal      = "1"
+embedded-hal-bus  = "0.3.0"
+mipidsi           = "0.10.0"
+panic-probe       = { version = "1", features = ["print-defmt"] }
+
+[profile.release]
+opt-level = "z"
+debug = 2
+lto = true
