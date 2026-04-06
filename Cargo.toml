@@ -44,9 +44,11 @@ embassy-time = {
     "defmt-timestamp-uptime"
   ]
 }
+embedded-can      = "0.4"
 embedded-graphics = "0.8"
 embedded-hal      = "1"
 embedded-hal-bus  = "0.3.0"
+mcp2515           = { version = "0.3", features = ["defmt"] }
 mipidsi           = "0.10.0"
 panic-probe       = { version = "1", features = ["print-defmt"] }
 

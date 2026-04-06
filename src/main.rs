@@ -16,6 +16,7 @@ use embedded_graphics::{
     text::Text,
 };
 use embedded_hal_bus::spi::ExclusiveDevice;
+use mcp2515::{CanSpeed, MCP2515, McpSpeed, regs::OpMode};
 use mipidsi::{
     models::ILI9341Rgb565,
     options::{Orientation, Rotation},
@@ -33,7 +34,7 @@ async fn main(_spawner: Spawner) {
         mode: HseMode::Oscillator,
     });
 
-    // Set clock divider @ 1x, PLL @ 9x to yield STM max clock of 72 MHz.
+    // Set clock divider @ 1x, PLL @ 9x to yield STM32F103C8T6 max clock of 72 MHz
     config.rcc.pll = Some(Pll {
         src: PllSource::HSE,
         prediv: PllPreDiv::DIV1,
@@ -42,35 +43,53 @@ async fn main(_spawner: Spawner) {
 
     config.rcc.sys = Sysclk::PLL1_P;
 
-    // Highest supported SPI clock for ILI9341 is 40 MHz, so get as close to
-    // that as we can. Use a 0.5x prescaler for APBI, which owns the SPI
-    // interface to the display.
+    // Highest supported clock for APB1 is 36 MHz, so use a 0.5x prescaler.
+    // APB2 can run at the full system clock of 72 MHz.
     config.rcc.apb1_pre = APBPrescaler::DIV2;
+    config.rcc.apb2_pre = APBPrescaler::DIV1;
 
     let peripherals = embassy_stm32::init(config);
     debug!("CPU running @ 72 MHz");
 
-    // Display setup for TPM408-2.8 (uses ILI9341 driver)
-    let mut display_spi_config = SpiConfig::default();
-    display_spi_config.frequency = Hertz(36_000_000);
-    let mut display_spi_buf = [0u8; 512];
-    let display_spi = Spi::new_blocking_txonly(
+    let mut spi1_config = SpiConfig::default();
+    spi1_config.frequency = Hertz(36_000_000);
+    let spi1_bus = Spi::new_blocking_txonly(
         peripherals.SPI1,
         peripherals.PA5,
         peripherals.PA7,
-        display_spi_config,
+        spi1_config,
     );
+    debug!("SPI1 initialized @ 36 MHz");
 
-    debug!("SPI1 for ILI9341 display initialized @ 36 MHz");
+    // MCP2515 supports a max SPI clock of 10 MHz, so use that here
+    let mut spi2_config = SpiConfig::default();
+    spi2_config.frequency = Hertz(10_000_000);
+    let spi2_bus = Spi::new_blocking(
+        peripherals.SPI2,
+        peripherals.PB13,
+        peripherals.PB15,
+        peripherals.PB14,
+        spi2_config,
+    );
+    debug!("SPI2 initialized @ 10 MHz");
 
+    // Display setup for TPM408-2.8 (uses ILI9341 driver)
+    //
+    // TODO:
+    //   ILI9341 can do SPI @ 40 MHz, but APB1 maxes out at 36 MHz.
+    //   Consider modifying the hardware so that the display uses SPI2, which
+    //   lives on APB2, to allow the ILI9341 to run at its max SPI clock speed
+    //   since the MCP2515 can only do a max of 10 MHz anyway.
     let display_chip_select = Output::new(peripherals.PA4, Level::High, Speed::VeryHigh);
     let display_dc = Output::new(peripherals.PB0, Level::Low, Speed::VeryHigh);
     let display_reset = Output::new(peripherals.PB1, Level::High, Speed::VeryHigh);
     let _display_backlight = Output::new(peripherals.PB10, Level::High, Speed::Low);
-    let display_device = ExclusiveDevice::new_no_delay(display_spi, display_chip_select)
-        .expect("Failed to init display device");
+    let display_spi_device = ExclusiveDevice::new_no_delay(spi1_bus, display_chip_select)
+        .expect("Failed to init display SPI device");
+
+    let mut display_spi_buf = [0u8; 512];
     let display_interface =
-        mipidsi::interface::SpiInterface::new(display_device, display_dc, &mut display_spi_buf);
+        mipidsi::interface::SpiInterface::new(display_spi_device, display_dc, &mut display_spi_buf);
 
     mod display_size {
         pub const HEIGHT: u16 = 240;
@@ -86,9 +105,29 @@ async fn main(_spawner: Spawner) {
         )
         .reset_pin(display_reset)
         .init(&mut Delay)
-        .expect("Failed to init display");
+        .expect("Failed to init display (ILI9341)");
 
     debug!("Display initialized");
+
+    let can_controller_chip_select = Output::new(peripherals.PB12, Level::High, Speed::VeryHigh);
+    let can_controller_spi_device =
+        ExclusiveDevice::new_no_delay(spi2_bus, can_controller_chip_select)
+            .expect("Failed to init CAN controller SPI device");
+    let mut can_controller = MCP2515::new(can_controller_spi_device);
+    const CANBUS_SPEED: CanSpeed = CanSpeed::Kbps1000; // Match the Haltech ECU's native bus speed
+    can_controller
+        .init(
+            &mut Delay,
+            mcp2515::Settings {
+                mode: OpMode::Normal,
+                can_speed: CANBUS_SPEED,
+                mcp_speed: McpSpeed::MHz8, // External oscillator on MCP dev board is 8 MHz
+                clkout_en: false,
+            },
+        )
+        .expect("Failed to init CAN controller (MCP2515)");
+
+    debug!("MCP2515 initialized");
 
     // The Rgb565::new() params seem to be B, G, R for some reason. I think
     // it has to do with the macro resolution in the underlying library,

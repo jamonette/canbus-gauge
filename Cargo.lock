@@ -100,9 +100,11 @@ dependencies = [
  "embassy-executor",
  "embassy-stm32",
  "embassy-time",
+ "embedded-can",
  "embedded-graphics",
  "embedded-hal 1.0.0",
  "embedded-hal-bus",
+ "mcp2515",
  "mipidsi",
  "panic-probe",
 ]
@@ -736,6 +738,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcp2515"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00c401ac7e8b6ddc3d7f505dae29f02ed5820ae2812955ce81053a462ebc9573"
+dependencies = [
+ "bitflags 1.3.2",
+ "defmt 0.3.100",
+ "embedded-can",
+ "embedded-hal 1.0.0",
+ "modular-bitfield",
+ "nb 1.1.0",
+ "void",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -756,6 +773,27 @@ dependencies = [
  "embedded-graphics-core",
  "embedded-hal 1.0.0",
  "heapless 0.8.0",
+]
+
+[[package]]
+name = "modular-bitfield"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a53d79ba8304ac1c4f9eb3b9d281f21f7be9d4626f72ce7df4ad8fbde4f38a74"
+dependencies = [
+ "modular-bitfield-impl",
+ "static_assertions",
+]
+
+[[package]]
+name = "modular-bitfield-impl"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a7d5f7076603ebc68de2dc6a650ec331a062a13abaa346975be747bbfa4b789"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
