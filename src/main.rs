@@ -1,6 +1,9 @@
 #![no_std]
 #![no_main]
 
+mod constants;
+
+use constants::{canbus_config, display_config};
 use defmt::debug;
 use embassy_executor::Spawner;
 use embassy_stm32::gpio::{Level, Output, Speed};
@@ -96,13 +99,11 @@ async fn main(_spawner: Spawner) {
     let display_interface =
         mipidsi::interface::SpiInterface::new(display_spi_device, display_dc, &mut display_spi_buf);
 
-    mod display_size {
-        pub const HEIGHT: u16 = 240;
-        pub const WIDTH: u16 = 320;
-    }
-
     let mut display = mipidsi::Builder::new(ILI9341Rgb565, display_interface)
-        .display_size(display_size::HEIGHT, display_size::WIDTH) // args backwards since using landscape
+        .display_size(
+            display_config::DISPLAY_HEIGHT,
+            display_config::DISPLAY_WIDTH,
+        ) // args backwards since using landscape
         .orientation(
             Orientation::new()
                 .rotate(Rotation::Deg270)
@@ -132,8 +133,9 @@ async fn main(_spawner: Spawner) {
         )
         .expect("MPC2515: Failed to init CAN controller");
 
-    let oil_temp_can_id = Id::Standard(StandardId::new(0x3E0).unwrap());
-    let oil_pressure_can_id = Id::Standard(StandardId::new(0x361).unwrap());
+    let oil_temp_can_id = Id::Standard(StandardId::new(canbus_config::OIL_TEMP_CAN_ID).unwrap());
+    let oil_pressure_can_id =
+        Id::Standard(StandardId::new(canbus_config::OIL_PRESSURE_CAN_ID).unwrap());
 
     // Configure the CAN controller frame filter. This drops all frames before
     // they hit the MCP hardware receive buffers, except those explicitly allowed
@@ -198,23 +200,14 @@ async fn main(_spawner: Spawner) {
 
     display.clear(Rgb565::BLACK).unwrap();
 
-    mod display_coords {
-        pub const BORDER_MARGIN_X: u16 = 4;
-        pub const BORDER_MARGIN_Y: u16 = 4;
-        pub const GAUGE_NAME_X: i32 = 16;
-        pub const GAUGE_VALUE_X: i32 = 160;
-        pub const ROW_0_Y: i32 = 80;
-        pub const ROW_1_Y: i32 = 110;
-    }
-
     Rectangle::new(
         Point::new(
-            display_coords::BORDER_MARGIN_X as i32,
-            display_coords::BORDER_MARGIN_Y as i32,
+            display_config::BORDER_MARGIN_X as i32,
+            display_config::BORDER_MARGIN_Y as i32,
         ),
         Size::new(
-            (display_size::WIDTH - (2 * display_coords::BORDER_MARGIN_X)) as u32,
-            (display_size::HEIGHT - (2 * display_coords::BORDER_MARGIN_Y)) as u32,
+            (display_config::DISPLAY_WIDTH - (2 * display_config::BORDER_MARGIN_X)) as u32,
+            (display_config::DISPLAY_HEIGHT - (2 * display_config::BORDER_MARGIN_Y)) as u32,
         ),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb565::WHITE, 2))
@@ -227,9 +220,9 @@ async fn main(_spawner: Spawner) {
 
     const DIVIDER_Y: i32 = 45;
     Line::new(
-        Point::new(display_coords::BORDER_MARGIN_X as i32, DIVIDER_Y),
+        Point::new(display_config::BORDER_MARGIN_X as i32, DIVIDER_Y),
         Point::new(
-            (display_size::WIDTH - display_coords::BORDER_MARGIN_X) as i32,
+            (display_config::DISPLAY_WIDTH - display_config::BORDER_MARGIN_X) as i32,
             DIVIDER_Y,
         ),
     )
@@ -239,14 +232,14 @@ async fn main(_spawner: Spawner) {
 
     Text::new(
         "Oil pressure:",
-        Point::new(display_coords::GAUGE_NAME_X, display_coords::ROW_0_Y),
+        Point::new(display_config::GAUGE_NAME_X, display_config::ROW_0_Y),
         text_orange,
     )
     .draw(&mut display)
     .unwrap();
     Text::new(
         "Oil temp:",
-        Point::new(display_coords::GAUGE_NAME_X, display_coords::ROW_1_Y),
+        Point::new(display_config::GAUGE_NAME_X, display_config::ROW_1_Y),
         text_orange,
     )
     .draw(&mut display)
@@ -254,14 +247,14 @@ async fn main(_spawner: Spawner) {
 
     Text::new(
         "--- psi",
-        Point::new(display_coords::GAUGE_VALUE_X, display_coords::ROW_0_Y),
+        Point::new(display_config::GAUGE_VALUE_X, display_config::ROW_0_Y),
         text_white,
     )
     .draw(&mut display)
     .unwrap();
     Text::new(
         "--- f",
-        Point::new(display_coords::GAUGE_VALUE_X, display_coords::ROW_1_Y),
+        Point::new(display_config::GAUGE_VALUE_X, display_config::ROW_1_Y),
         text_white,
     )
     .draw(&mut display)
