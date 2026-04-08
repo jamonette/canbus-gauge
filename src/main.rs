@@ -80,7 +80,7 @@ async fn main(spawner: Spawner) {
 
     // Display setup for TPM408-2.8 (uses ILI9341 driver)
     //
-    // TODO:
+    // TODO: Display SPI bus speed
     //   ILI9341 can do SPI @ 40 MHz, but APB1 maxes out at 36 MHz.
     //   Consider modifying the hardware so that the display uses SPI2, which
     //   lives on APB2, to allow the ILI9341 to run at its max SPI clock speed
