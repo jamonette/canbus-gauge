@@ -36,7 +36,23 @@ pub async fn canbus_reader_task(mut can_controller: CanbusController) {
                         _ => warn!("Received invalid oil temp frame {:x}", data),
                     }
                 } else if frame_can_id == oil_pressure_can_id {
-                    // TODO
+                    match data.get(2..3) {
+                        Some([b1, b2]) => {
+                            let raw_pressure = u16::from_be_bytes([*b1, *b2]);
+
+                            // kPa to PSI is approx 0.145038
+                            //
+                            // `(kpa * 145 + 500) / 1000` gets close enough for this application
+                            // without having to introduce fixed point.
+                            //
+                            // Also the atmospheric offset should be 101.3, but again close enough.
+                            let kpa = (raw_pressure / 10) - 101;
+                            let psi = (kpa * 145 + 500) / 1000;
+
+                            globals::_OIL_PRESSURE_PSI.store(psi, Ordering::Relaxed);
+                        }
+                        _ => warn!("Received invalid oil temp frame {:x}", data),
+                    }
                 }
             }
             Err(mcp2515::error::Error::NoMessage) => yield_now().await,
