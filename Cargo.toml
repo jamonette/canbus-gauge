@@ -51,6 +51,7 @@ embedded-hal-bus  = "0.3.0"
 mcp2515           = { version = "0.3", features = ["defmt"] }
 mipidsi           = "0.10.0"
 panic-probe       = { version = "1", features = ["print-defmt"] }
+static_cell       = "2.1.1"
 
 [profile.release]
 opt-level = "z"

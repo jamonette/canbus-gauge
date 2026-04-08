@@ -2,6 +2,9 @@
 #![no_main]
 
 mod constants;
+mod display;
+mod globals;
+mod types;
 
 use constants::{canbus_config, display_config};
 use defmt::debug;
@@ -12,13 +15,6 @@ use embassy_stm32::spi::{Config as SpiConfig, Spi};
 use embassy_stm32::time::Hertz;
 use embassy_time::Delay;
 use embedded_can::{Id, StandardId};
-use embedded_graphics::{
-    mono_font::{MonoTextStyle, ascii::FONT_10X20},
-    pixelcolor::Rgb565,
-    prelude::*,
-    primitives::{Line, PrimitiveStyle, Rectangle},
-    text::Text,
-};
 use embedded_hal_bus::spi::ExclusiveDevice;
 use mcp2515::{
     CanSpeed, MCP2515, McpSpeed,
@@ -32,7 +28,7 @@ use mipidsi::{
 use {defmt_rtt as _, panic_probe as _};
 
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) {
+async fn main(spawner: Spawner) {
     debug!("Starting CANBUS gauge");
 
     // Use dev board's external oscillator @ 8 MHz
@@ -95,9 +91,11 @@ async fn main(_spawner: Spawner) {
     let display_spi_device = ExclusiveDevice::new_no_delay(spi1_bus, display_chip_select)
         .expect("Failed to init display SPI device");
 
-    let mut display_spi_buf = [0u8; 512];
-    let display_interface =
-        mipidsi::interface::SpiInterface::new(display_spi_device, display_dc, &mut display_spi_buf);
+    let display_interface = mipidsi::interface::SpiInterface::new(
+        display_spi_device,
+        display_dc,
+        globals::DISPLAY_SPI_BUF.take(), // buffer needs a static lifetime, so keep it in a StaticCell
+    );
 
     let mut display = mipidsi::Builder::new(ILI9341Rgb565, display_interface)
         .display_size(
@@ -192,75 +190,9 @@ async fn main(_spawner: Spawner) {
         .expect("MCP2515: Failed to enter normal mode");
     debug!("MCP2515: Initialization complete");
 
-    // The Rgb565::new() params seem to be B, G, R for some reason. I think
-    // it has to do with the macro resolution in the underlying library,
-    // but ignoring it for now.
-    let text_orange = MonoTextStyle::new(&FONT_10X20, Rgb565::new(0, 33, 31));
-    let text_white = MonoTextStyle::new(&FONT_10X20, Rgb565::WHITE);
+    display::draw_initial_ui(&mut display);
 
-    display.clear(Rgb565::BLACK).unwrap();
-
-    Rectangle::new(
-        Point::new(
-            display_config::BORDER_MARGIN_X as i32,
-            display_config::BORDER_MARGIN_Y as i32,
-        ),
-        Size::new(
-            (display_config::DISPLAY_WIDTH - (2 * display_config::BORDER_MARGIN_X)) as u32,
-            (display_config::DISPLAY_HEIGHT - (2 * display_config::BORDER_MARGIN_Y)) as u32,
-        ),
-    )
-    .into_styled(PrimitiveStyle::with_stroke(Rgb565::WHITE, 2))
-    .draw(&mut display)
-    .unwrap();
-
-    Text::new("CANBUS Gauge v0.0.1", Point::new(16, 35), text_orange)
-        .draw(&mut display)
-        .unwrap();
-
-    const DIVIDER_Y: i32 = 45;
-    Line::new(
-        Point::new(display_config::BORDER_MARGIN_X as i32, DIVIDER_Y),
-        Point::new(
-            (display_config::DISPLAY_WIDTH - display_config::BORDER_MARGIN_X) as i32,
-            DIVIDER_Y,
-        ),
-    )
-    .into_styled(PrimitiveStyle::with_stroke(Rgb565::WHITE, 1))
-    .draw(&mut display)
-    .unwrap();
-
-    Text::new(
-        "Oil pressure:",
-        Point::new(display_config::GAUGE_NAME_X, display_config::ROW_0_Y),
-        text_orange,
-    )
-    .draw(&mut display)
-    .unwrap();
-    Text::new(
-        "Oil temp:",
-        Point::new(display_config::GAUGE_NAME_X, display_config::ROW_1_Y),
-        text_orange,
-    )
-    .draw(&mut display)
-    .unwrap();
-
-    Text::new(
-        "--- psi",
-        Point::new(display_config::GAUGE_VALUE_X, display_config::ROW_0_Y),
-        text_white,
-    )
-    .draw(&mut display)
-    .unwrap();
-    Text::new(
-        "--- f",
-        Point::new(display_config::GAUGE_VALUE_X, display_config::ROW_1_Y),
-        text_white,
-    )
-    .draw(&mut display)
-    .unwrap();
-
-    debug!("Entering main loop");
+    spawner.spawn(display::display_update_task(display).expect("Failed to spawn display_task"));
 
     #[allow(clippy::empty_loop)]
     loop {}
