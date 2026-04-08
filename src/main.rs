@@ -8,6 +8,7 @@ use embassy_stm32::rcc::{APBPrescaler, Hse, HseMode, Pll, PllMul, PllPreDiv, Pll
 use embassy_stm32::spi::{Config as SpiConfig, Spi};
 use embassy_stm32::time::Hertz;
 use embassy_time::Delay;
+use embedded_can::{Id, StandardId};
 use embedded_graphics::{
     mono_font::{MonoTextStyle, ascii::FONT_10X20},
     pixelcolor::Rgb565,
@@ -16,7 +17,11 @@ use embedded_graphics::{
     text::Text,
 };
 use embedded_hal_bus::spi::ExclusiveDevice;
-use mcp2515::{CanSpeed, MCP2515, McpSpeed, regs::OpMode};
+use mcp2515::{
+    CanSpeed, MCP2515, McpSpeed,
+    filter::{RxFilter, RxMask},
+    regs::OpMode,
+};
 use mipidsi::{
     models::ILI9341Rgb565,
     options::{Orientation, Rotation},
@@ -112,7 +117,7 @@ async fn main(_spawner: Spawner) {
     let can_controller_chip_select = Output::new(peripherals.PB12, Level::High, Speed::VeryHigh);
     let can_controller_spi_device =
         ExclusiveDevice::new_no_delay(spi2_bus, can_controller_chip_select)
-            .expect("Failed to init CAN controller SPI device");
+            .expect("Failed to init SPI device for CAN controller");
     let mut can_controller = MCP2515::new(can_controller_spi_device);
     const CANBUS_SPEED: CanSpeed = CanSpeed::Kbps1000; // Match the Haltech ECU's native bus speed
     can_controller
@@ -125,9 +130,65 @@ async fn main(_spawner: Spawner) {
                 clkout_en: false,
             },
         )
-        .expect("Failed to init CAN controller (MCP2515)");
+        .expect("MPC2515: Failed to init CAN controller");
 
-    debug!("MCP2515 initialized");
+    let oil_temp_can_id = Id::Standard(StandardId::new(0x3E0).unwrap());
+    let oil_pressure_can_id = Id::Standard(StandardId::new(0x361).unwrap());
+
+    // Configure the CAN controller frame filter. This drops all frames before
+    // they hit the MCP hardware receive buffers, except those explicitly allowed
+    // by the filter. This greatly reduces SPI throughput and CPU workload.
+    //
+    // The MCP contains two receive buffers and 6 filters, configured such that:
+    //
+    //      RXB0 (high priority) is governed by RXF0, RXF1, and RXM0
+    //      RXB1 (low priority) is governed by RXF2, RXF3, RXF4, RXF5, and RXM1
+    //
+    // RXM above describes an additional mask that also controls filter matching,
+    // such that `(id & mask) == (filter & mask)`.
+    //
+    // So, to enable the filters to apply all 11 bits of a standard CAN id
+    // (aka, requiring an exact match), set each mask to 0x7FF.
+    //
+    // Note that in its default configuration (BUKT enable), when RXB0 is full,
+    // frames automatically roll over to RXB1 _regardless of the RXB1 filters_.
+    // In our case, this is the desired behavior. This means that both RXB0 and
+    // RXB1 respect the first two RXF filters, but the remaining 4 filters only
+    // apply to the second RX buffer, which slightly limits throughput of filtered
+    // frames when using more than two.
+    //
+    // ... at least I think I have that right. See the MCP2515 datasheet in this repo
+    // for details.
+
+    can_controller
+        .set_mode(OpMode::Configuration)
+        .expect("MCP2515: Failed to enter config mode");
+
+    const FILTER_MASK: u16 = 0x7FF;
+    let filter_mask_id = Id::Standard(StandardId::new(FILTER_MASK).unwrap());
+    can_controller
+        .set_mask(RxMask::Mask0, filter_mask_id)
+        .expect("MCP2515: Failed to set CAN filter Mask0");
+    can_controller
+        .set_mask(RxMask::Mask1, filter_mask_id)
+        .expect("MCP2515: Failed to set CAN filter Mask1");
+    can_controller
+        .set_filter(RxFilter::F0, oil_temp_can_id)
+        .expect("MCP2515: Failed to set CAN filter 0");
+    can_controller
+        .set_filter(RxFilter::F1, oil_pressure_can_id)
+        .expect("MCP2515: Failed to set CAN filter 1");
+    can_controller
+        .set_filter(RxFilter::F2, oil_temp_can_id)
+        .expect("MCP2515: Failed to set CAN filter 2");
+    can_controller
+        .set_filter(RxFilter::F3, oil_pressure_can_id)
+        .expect("MCP2515: Failed to set CAN filter 3");
+
+    can_controller
+        .set_mode(OpMode::Normal)
+        .expect("MCP2515: Failed to enter normal mode");
+    debug!("MCP2515: Initialization complete");
 
     // The Rgb565::new() params seem to be B, G, R for some reason. I think
     // it has to do with the macro resolution in the underlying library,
