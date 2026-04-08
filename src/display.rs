@@ -1,3 +1,4 @@
+use embassy_time::{Duration, Ticker};
 use embedded_graphics::primitives::Line;
 use embedded_graphics::{
     mono_font::{MonoTextStyle, ascii::FONT_10X20},
@@ -11,7 +12,13 @@ use crate::constants::display_config;
 use crate::types::Display;
 
 #[embassy_executor::task]
-pub async fn display_update_task(mut _display: Display) {}
+pub async fn display_update_task(mut _display: Display) {
+    // Update display @ 10 Hz
+    let mut ticker = Ticker::every(Duration::from_millis(100));
+    loop {
+        ticker.next().await;
+    }
+}
 
 pub fn draw_initial_ui(display: &mut Display) {
     // The Rgb565::new() params seem to be B, G, R for some reason. I think

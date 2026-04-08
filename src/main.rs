@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+mod canbus;
 mod constants;
 mod display;
 mod globals;
@@ -101,7 +102,7 @@ async fn main(spawner: Spawner) {
         .display_size(
             display_config::DISPLAY_HEIGHT,
             display_config::DISPLAY_WIDTH,
-        ) // args backwards since using landscape
+        ) // Args are backwards here since display is in landscape mode
         .orientation(
             Orientation::new()
                 .rotate(Rotation::Deg270)
@@ -193,6 +194,9 @@ async fn main(spawner: Spawner) {
     display::draw_initial_ui(&mut display);
 
     spawner.spawn(display::display_update_task(display).expect("Failed to spawn display_task"));
+    spawner.spawn(
+        canbus::canbus_reader_task(can_controller).expect("Failed to spawn canbus_reader task"),
+    );
 
     #[allow(clippy::empty_loop)]
     loop {}

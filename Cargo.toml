@@ -27,6 +27,10 @@ embassy-executor = {
     "defmt"
   ]
 }
+embassy-futures = {
+  git = "https://github.com/embassy-rs/embassy",
+  version = "0.1.1",
+}
 embassy-stm32 = {
   git = "https://github.com/embassy-rs/embassy",
   version = "0.6.0",
