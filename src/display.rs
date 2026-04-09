@@ -1,6 +1,6 @@
 use core::fmt::Write as _;
 use core::sync::atomic::Ordering;
-use embassy_time::{Duration, Ticker};
+use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::primitives::Line;
 use embedded_graphics::{
     mono_font::{MonoTextStyle, ascii::FONT_10X20},
@@ -11,9 +11,8 @@ use embedded_graphics::{
 };
 use heapless::String;
 
-use crate::constants::display_config;
-use crate::globals;
 use crate::types::Display;
+use crate::{constants, constants::display_config, globals};
 
 // The Rgb565::new() params seem to be B, G, R for some reason. I think
 // it has to do with the macro resolution in the underlying library,
@@ -28,22 +27,26 @@ pub async fn display_update_task(mut display: Display) {
 
     loop {
         ticker.next().await;
+        let now = Instant::now().as_millis() as u32;
 
-        let mut oil_temp_str: String<16> = String::new();
-        core::write!(
-            oil_temp_str,
-            "{}",
-            globals::OIL_TEMP_F.load(Ordering::Relaxed)
-        )
-        .unwrap();
+        let empty_value = "---";
+        let oil_temp_str: String<16> =
+            if value_is_stale(now, globals::OIL_TEMP_LAST_RCVD.load(Ordering::Relaxed)) {
+                String::try_from(empty_value).unwrap()
+            } else {
+                let mut str: String<16> = String::new();
+                core::write!(str, "{}", globals::OIL_TEMP_F.load(Ordering::Relaxed)).unwrap();
+                str
+            };
 
-        let mut oil_pressure_str: String<16> = String::new();
-        core::write!(
-            oil_pressure_str,
-            "{}",
-            globals::OIL_PRESSURE_PSI.load(Ordering::Relaxed)
-        )
-        .unwrap();
+        let oil_pressure_str: String<16> =
+            if value_is_stale(now, globals::OIL_PRESSURE_LAST_RCVD.load(Ordering::Relaxed)) {
+                String::try_from(empty_value).unwrap()
+            } else {
+                let mut str: String<16> = String::new();
+                core::write!(str, "{}", globals::OIL_PRESSURE_PSI.load(Ordering::Relaxed)).unwrap();
+                str
+            };
 
         update_value(
             &mut display,
@@ -69,6 +72,10 @@ pub async fn display_update_task(mut display: Display) {
 
         ticker.next().await;
     }
+}
+
+fn value_is_stale(now_ms: u32, last_ms: u32) -> bool {
+    last_ms == u32::MAX || now_ms - last_ms > constants::LAST_RECEIVED_THRESHOLD_MS
 }
 
 #[allow(clippy::too_many_arguments)]

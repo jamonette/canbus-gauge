@@ -1,6 +1,7 @@
 use core::sync::atomic::Ordering;
 use defmt::warn;
 use embassy_futures::yield_now;
+use embassy_time::Instant;
 use embedded_can::{Frame, Id, StandardId, blocking::Can};
 use {defmt_rtt as _, panic_probe as _};
 
@@ -22,6 +23,7 @@ pub async fn canbus_reader_task(mut can_controller: CanbusController) {
             Ok(frame) => {
                 let frame_can_id = frame.id();
                 let data = frame.data();
+                let now = Instant::now().as_millis() as u32;
 
                 if frame_can_id == oil_temp_can_id {
                     match data.get(6..8) {
@@ -32,6 +34,7 @@ pub async fn canbus_reader_task(mut can_controller: CanbusController) {
                             let celsius = kelvin - 273;
                             let fahrenheit = ((celsius * 9 / 5) + 32).max(0) as u16;
                             globals::OIL_TEMP_F.store(fahrenheit, Ordering::Relaxed);
+                            globals::OIL_TEMP_LAST_RCVD.store(now, Ordering::Relaxed);
                         }
                         _ => warn!("Received invalid oil temp frame {:x}", data),
                     }
@@ -50,6 +53,7 @@ pub async fn canbus_reader_task(mut can_controller: CanbusController) {
                             let psi = ((kpa * 145 + 500) / 1000) as u16;
 
                             globals::OIL_PRESSURE_PSI.store(psi, Ordering::Relaxed);
+                            globals::OIL_PRESSURE_LAST_RCVD.store(now, Ordering::Relaxed);
                         }
                         _ => warn!("Received invalid oil temp frame {:x}", data),
                     }

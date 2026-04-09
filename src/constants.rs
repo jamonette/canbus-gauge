@@ -16,3 +16,5 @@ pub mod display_config {
     pub const ROW_0_Y: i32 = 80;
     pub const ROW_1_Y: i32 = 110;
 }
+
+pub const LAST_RECEIVED_THRESHOLD_MS: u32 = 1000;
