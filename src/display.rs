@@ -55,7 +55,7 @@ pub async fn display_update_task(mut display: Display) {
             display_config::GAUGE_VALUE_X,
             display_config::ROW_0_Y - display_config::GAUGE_FONT_HEIGHT as i32,
             display_config::GAUGE_VALUE_WIDTH,
-            display_config::GAUGE_VALUE_WIDTH,
+            display_config::GAUGE_VALUE_HEIGHT,
             oil_temp_str,
         );
 
@@ -66,7 +66,7 @@ pub async fn display_update_task(mut display: Display) {
             display_config::GAUGE_VALUE_X,
             display_config::ROW_1_Y - display_config::GAUGE_FONT_HEIGHT as i32,
             display_config::GAUGE_VALUE_WIDTH,
-            display_config::GAUGE_VALUE_WIDTH,
+            display_config::GAUGE_VALUE_HEIGHT,
             oil_pressure_str,
         );
 
@@ -85,14 +85,14 @@ pub fn update_value(
     text_y: i32,
     bounding_box_x: i32,
     bounding_box_y: i32,
-    width: u32,
-    height: u32,
+    bounding_box_width: u32,
+    bounding_box_height: u32,
     value: String<16>,
 ) {
     // Draw over previous value
     Rectangle::new(
         Point::new(bounding_box_x, bounding_box_y),
-        Size::new(width, height),
+        Size::new(bounding_box_width, bounding_box_height),
     )
     .into_styled(PrimitiveStyle::with_fill(Rgb565::BLACK))
     .draw(display)
@@ -137,7 +137,7 @@ pub fn draw_initial_ui(display: &mut Display) {
     .unwrap();
 
     Text::new(
-        "Oil pressure:",
+        "Oil temp:",
         Point::new(display_config::GAUGE_NAME_X, display_config::ROW_0_Y),
         TEXT_ORANGE,
     )
@@ -145,7 +145,15 @@ pub fn draw_initial_ui(display: &mut Display) {
     .unwrap();
 
     Text::new(
-        "Oil temp:",
+        "--- f",
+        Point::new(display_config::GAUGE_VALUE_X, display_config::ROW_0_Y),
+        TEXT_WHITE,
+    )
+    .draw(display)
+    .unwrap();
+
+    Text::new(
+        "Oil pressure:",
         Point::new(display_config::GAUGE_NAME_X, display_config::ROW_1_Y),
         TEXT_ORANGE,
     )
@@ -154,14 +162,6 @@ pub fn draw_initial_ui(display: &mut Display) {
 
     Text::new(
         "--- psi",
-        Point::new(display_config::GAUGE_VALUE_X, display_config::ROW_0_Y),
-        TEXT_WHITE,
-    )
-    .draw(display)
-    .unwrap();
-
-    Text::new(
-        "--- f",
         Point::new(display_config::GAUGE_VALUE_X, display_config::ROW_1_Y),
         TEXT_WHITE,
     )

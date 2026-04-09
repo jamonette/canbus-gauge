@@ -13,6 +13,7 @@ pub mod display_config {
     pub const GAUGE_NAME_X: i32 = 16;
     pub const GAUGE_VALUE_X: i32 = 160;
     pub const GAUGE_VALUE_WIDTH: u32 = GAUGE_FONT_WIDTH * 3;
+    pub const GAUGE_VALUE_HEIGHT: u32 = GAUGE_FONT_HEIGHT + 4;
     pub const ROW_0_Y: i32 = 80;
     pub const ROW_1_Y: i32 = 110;
 }
