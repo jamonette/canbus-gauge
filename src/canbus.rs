@@ -26,19 +26,19 @@ pub async fn canbus_reader_task(mut can_controller: CanbusController) {
                 if frame_can_id == oil_temp_can_id {
                     match data.get(6..8) {
                         Some([b1, b2]) => {
-                            // Haltech protocol is big-endian
-                            let raw_temp = u16::from_be_bytes([*b1, *b2]);
+                            // Needs i32 for intermediates to avoid underflows
+                            let raw_temp = u16::from_be_bytes([*b1, *b2]) as i32;
                             let kelvin = raw_temp / 10;
                             let celsius = kelvin - 273;
-                            let fahrenheit = (celsius * 9 / 5) + 32;
+                            let fahrenheit = ((celsius * 9 / 5) + 32).max(0) as u16;
                             globals::OIL_TEMP_F.store(fahrenheit, Ordering::Relaxed);
                         }
                         _ => warn!("Received invalid oil temp frame {:x}", data),
                     }
                 } else if frame_can_id == oil_pressure_can_id {
-                    match data.get(2..3) {
+                    match data.get(2..4) {
                         Some([b1, b2]) => {
-                            let raw_pressure = u16::from_be_bytes([*b1, *b2]);
+                            let raw_pressure = u16::from_be_bytes([*b1, *b2]) as i32;
 
                             // kPa to PSI is approx 0.145038
                             //
@@ -46,10 +46,10 @@ pub async fn canbus_reader_task(mut can_controller: CanbusController) {
                             // without having to introduce fixed point.
                             //
                             // Also the atmospheric offset should be 101.3, but again close enough.
-                            let kpa = (raw_pressure / 10) - 101;
-                            let psi = (kpa * 145 + 500) / 1000;
+                            let kpa = (raw_pressure / 10).saturating_sub(101);
+                            let psi = ((kpa * 145 + 500) / 1000) as u16;
 
-                            globals::_OIL_PRESSURE_PSI.store(psi, Ordering::Relaxed);
+                            globals::OIL_PRESSURE_PSI.store(psi, Ordering::Relaxed);
                         }
                         _ => warn!("Received invalid oil temp frame {:x}", data),
                     }

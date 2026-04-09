@@ -1,3 +1,5 @@
+use core::fmt::Write as _;
+use core::sync::atomic::Ordering;
 use embassy_time::{Duration, Ticker};
 use embedded_graphics::primitives::Line;
 use embedded_graphics::{
@@ -7,26 +9,94 @@ use embedded_graphics::{
     primitives::{PrimitiveStyle, Rectangle},
     text::Text,
 };
+use heapless::String;
 
 use crate::constants::display_config;
+use crate::globals;
 use crate::types::Display;
 
+// The Rgb565::new() params seem to be B, G, R for some reason. I think
+// it has to do with the macro resolution in the underlying library,
+// but ignoring it for now.
+static TEXT_ORANGE: MonoTextStyle<Rgb565> = MonoTextStyle::new(&FONT_10X20, Rgb565::new(0, 33, 31));
+static TEXT_WHITE: MonoTextStyle<Rgb565> = MonoTextStyle::new(&FONT_10X20, Rgb565::WHITE);
+
 #[embassy_executor::task]
-pub async fn display_update_task(mut _display: Display) {
+pub async fn display_update_task(mut display: Display) {
     // Update display @ 10 Hz
     let mut ticker = Ticker::every(Duration::from_millis(100));
+
     loop {
+        ticker.next().await;
+
+        let mut oil_temp_str: String<16> = String::new();
+        core::write!(
+            oil_temp_str,
+            "{}",
+            globals::OIL_TEMP_F.load(Ordering::Relaxed)
+        )
+        .unwrap();
+
+        let mut oil_pressure_str: String<16> = String::new();
+        core::write!(
+            oil_pressure_str,
+            "{}",
+            globals::OIL_PRESSURE_PSI.load(Ordering::Relaxed)
+        )
+        .unwrap();
+
+        update_value(
+            &mut display,
+            display_config::GAUGE_VALUE_X,
+            display_config::ROW_0_Y,
+            display_config::GAUGE_VALUE_X,
+            display_config::ROW_0_Y - display_config::GAUGE_FONT_HEIGHT as i32,
+            display_config::GAUGE_VALUE_WIDTH,
+            display_config::GAUGE_VALUE_WIDTH,
+            oil_temp_str,
+        );
+
+        update_value(
+            &mut display,
+            display_config::GAUGE_VALUE_X,
+            display_config::ROW_1_Y,
+            display_config::GAUGE_VALUE_X,
+            display_config::ROW_1_Y - display_config::GAUGE_FONT_HEIGHT as i32,
+            display_config::GAUGE_VALUE_WIDTH,
+            display_config::GAUGE_VALUE_WIDTH,
+            oil_pressure_str,
+        );
+
         ticker.next().await;
     }
 }
 
-pub fn draw_initial_ui(display: &mut Display) {
-    // The Rgb565::new() params seem to be B, G, R for some reason. I think
-    // it has to do with the macro resolution in the underlying library,
-    // but ignoring it for now.
-    let text_orange = MonoTextStyle::new(&FONT_10X20, Rgb565::new(0, 33, 31));
-    let text_white = MonoTextStyle::new(&FONT_10X20, Rgb565::WHITE);
+#[allow(clippy::too_many_arguments)]
+pub fn update_value(
+    display: &mut Display,
+    text_x: i32,
+    text_y: i32,
+    bounding_box_x: i32,
+    bounding_box_y: i32,
+    width: u32,
+    height: u32,
+    value: String<16>,
+) {
+    // Draw over previous value
+    Rectangle::new(
+        Point::new(bounding_box_x, bounding_box_y),
+        Size::new(width, height),
+    )
+    .into_styled(PrimitiveStyle::with_fill(Rgb565::BLACK))
+    .draw(display)
+    .ok();
 
+    Text::new(&value, Point::new(text_x, text_y), TEXT_WHITE)
+        .draw(display)
+        .unwrap();
+}
+
+pub fn draw_initial_ui(display: &mut Display) {
     display.clear(Rgb565::BLACK).unwrap();
 
     Rectangle::new(
@@ -43,7 +113,7 @@ pub fn draw_initial_ui(display: &mut Display) {
     .draw(display)
     .unwrap();
 
-    Text::new("CANBUS Gauge v0.0.1", Point::new(16, 35), text_orange)
+    Text::new("CANBUS Gauge v0.0.1", Point::new(16, 35), TEXT_ORANGE)
         .draw(display)
         .unwrap();
 
@@ -62,7 +132,7 @@ pub fn draw_initial_ui(display: &mut Display) {
     Text::new(
         "Oil pressure:",
         Point::new(display_config::GAUGE_NAME_X, display_config::ROW_0_Y),
-        text_orange,
+        TEXT_ORANGE,
     )
     .draw(display)
     .unwrap();
@@ -70,7 +140,7 @@ pub fn draw_initial_ui(display: &mut Display) {
     Text::new(
         "Oil temp:",
         Point::new(display_config::GAUGE_NAME_X, display_config::ROW_1_Y),
-        text_orange,
+        TEXT_ORANGE,
     )
     .draw(display)
     .unwrap();
@@ -78,7 +148,7 @@ pub fn draw_initial_ui(display: &mut Display) {
     Text::new(
         "--- psi",
         Point::new(display_config::GAUGE_VALUE_X, display_config::ROW_0_Y),
-        text_white,
+        TEXT_WHITE,
     )
     .draw(display)
     .unwrap();
@@ -86,7 +156,7 @@ pub fn draw_initial_ui(display: &mut Display) {
     Text::new(
         "--- f",
         Point::new(display_config::GAUGE_VALUE_X, display_config::ROW_1_Y),
-        text_white,
+        TEXT_WHITE,
     )
     .draw(display)
     .unwrap();

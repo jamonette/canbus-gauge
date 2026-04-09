@@ -197,7 +197,4 @@ async fn main(spawner: Spawner) {
     spawner.spawn(
         canbus::canbus_reader_task(can_controller).expect("Failed to spawn canbus_reader task"),
     );
-
-    #[allow(clippy::empty_loop)]
-    loop {}
 }

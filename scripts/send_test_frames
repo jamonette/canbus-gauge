@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+
+import subprocess
+import sys
+
+# Send test frames via linux socketcan/can-utils
+
+OIL_TEMP_CAN_ID     = 0x3E0
+OIL_PRESSURE_CAN_ID = 0x361
+
+def encode_oil_temp(fahrenheit):
+    celsius  = (fahrenheit - 32) * 5 / 9
+    kelvin   = celsius + 273.15
+    raw      = round(kelvin * 10)
+    raw      = max(0, min(0xFFFF, raw))
+    frame    = bytearray(8)
+    frame[6] = (raw >> 8) & 0xFF
+    frame[7] =  raw       & 0xFF
+    return bytes(frame)
+
+def encode_oil_pressure(psi):
+    kpa      = (psi * 1000) / 145
+    raw      = round((kpa + 101) * 10)
+    raw      = max(0, min(0xFFFF, raw))
+    frame    = bytearray(4)
+    frame[2] = (raw >> 8) & 0xFF
+    frame[3] =  raw       & 0xFF
+    return bytes(frame)
+
+def send(can_id, data):
+    frame_str = f"{can_id:03X}#{data.hex().upper()}"
+    cmd = ["cansend", "can0", frame_str]
+    print(f"{' '.join(cmd)}")
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        sys.exit(result.returncode)
+
+if len(sys.argv) != 3:
+    print(f"usage: {sys.argv[0]} oil_temp_f oil_pressure_psi")
+    sys.exit(1)
+
+temp_f = float(sys.argv[1])
+pressure_psi = float(sys.argv[2])
+
+send(OIL_TEMP_CAN_ID, encode_oil_temp(temp_f))
+send(OIL_PRESSURE_CAN_ID, encode_oil_pressure(pressure_psi))

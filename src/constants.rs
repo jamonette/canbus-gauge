@@ -8,8 +8,11 @@ pub mod display_config {
     pub const DISPLAY_WIDTH: u16 = 320;
     pub const BORDER_MARGIN_X: u16 = 4;
     pub const BORDER_MARGIN_Y: u16 = 4;
+    pub const GAUGE_FONT_WIDTH: u32 = 10;
+    pub const GAUGE_FONT_HEIGHT: u32 = 22;
     pub const GAUGE_NAME_X: i32 = 16;
     pub const GAUGE_VALUE_X: i32 = 160;
+    pub const GAUGE_VALUE_WIDTH: u32 = GAUGE_FONT_WIDTH * 3;
     pub const ROW_0_Y: i32 = 80;
     pub const ROW_1_Y: i32 = 110;
 }
