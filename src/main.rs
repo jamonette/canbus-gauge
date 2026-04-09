@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-mod canbus;
+mod canbus_reader;
 mod constants;
 mod display;
 mod globals;
@@ -195,6 +195,6 @@ async fn main(spawner: Spawner) {
 
     spawner.spawn(display::display_update_task(display).expect("Failed to spawn display_task"));
     spawner.spawn(
-        canbus::canbus_reader_task(can_controller).expect("Failed to spawn canbus_reader task"),
+        canbus_reader::canbus_reader_task(can_controller).expect("Failed to spawn canbus_reader task"),
     );
 }
