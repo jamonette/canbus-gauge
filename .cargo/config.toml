@@ -1,7 +1,7 @@
 [build]
-target = "thumbv7m-none-eabi" # STM32F103C8T6 - Cortex-M3
+target = "thumbv7em-none-eabihf" # STM32F411CEU6 - Cortex-M4F
 
-[target.thumbv7m-none-eabi]
+[target.thumbv7em-none-eabihf]
 rustflags = [
   "-C", "link-arg=-Tdefmt.x",
   "-C", "link-arg=-Tlink.x",
@@ -9,7 +9,8 @@ rustflags = [
 ]
 
 # Add `--connect-under-reset` flag if ST-LINK is wired to the STM's reset pin
-runner = "probe-rs run --chip STM32F103C8"
+runner = "probe-rs run --chip STM32F411CEUx"
 
 [env]
 DEFMT_LOG = "debug"
+

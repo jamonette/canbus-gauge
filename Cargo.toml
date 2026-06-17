@@ -36,7 +36,7 @@ embassy-stm32 = {
   version = "0.6.0",
   features = [
     "defmt",
-    "stm32f103c8",
+    "stm32f411ce",
     "time-driver-tim2",
   ]
 }

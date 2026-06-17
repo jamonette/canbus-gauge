@@ -11,7 +11,10 @@ use constants::{canbus_config, display_config};
 use defmt::debug;
 use embassy_executor::Spawner;
 use embassy_stm32::gpio::{Level, Output, Speed};
-use embassy_stm32::rcc::{APBPrescaler, Hse, HseMode, Pll, PllMul, PllPreDiv, PllSource, Sysclk};
+use embassy_stm32::rcc::{
+    AHBPrescaler, APBPrescaler, Hse, HseMode, Pll, PllMul, PllPDiv, PllPreDiv, PllQDiv, PllSource,
+    Sysclk,
+};
 use embassy_stm32::spi::{Config as SpiConfig, Spi};
 use embassy_stm32::time::Hertz;
 use embassy_time::Delay;
@@ -32,41 +35,50 @@ use {defmt_rtt as _, panic_probe as _};
 async fn main(spawner: Spawner) {
     debug!("Starting CANBUS gauge");
 
-    // Use dev board's external oscillator @ 8 MHz
     let mut config = embassy_stm32::Config::default();
+
+    // Use blackpill dev board's 25 MHz external oscillator
     config.rcc.hse = Some(Hse {
-        freq: Hertz(8_000_000),
+        freq: Hertz(25_000_000),
         mode: HseMode::Oscillator,
     });
 
-    // Set clock divider @ 1x, PLL @ 9x to yield STM32F103C8T6 max clock of 72 MHz
+    // Set clock divider to 25x, PLL @ 192x, scale by /2 to yield
+    // system clock of 96 MHz (max for STM32F411CEU6)
+    config.rcc.pll_src = PllSource::HSE;
     config.rcc.pll = Some(Pll {
-        src: PllSource::HSE,
-        prediv: PllPreDiv::DIV1,
-        mul: PllMul::MUL9,
+        prediv: PllPreDiv::DIV25,
+        mul: PllMul::MUL192,
+        divp: Some(PllPDiv::DIV2),
+        divq: Some(PllQDiv::DIV4), // 48 MHz USB clock (unused)
+        divr: None,
     });
 
     config.rcc.sys = Sysclk::PLL1_P;
 
-    // Highest supported clock for APB1 is 36 MHz, so use a 0.5x prescaler.
-    // APB2 can run at the full system clock of 72 MHz.
+    // Highest supported clock for APB1 is 50 MHz, so use a 0.5x prescaler.
+    // APB2 can run at the full system clock of 96 MHz
+    config.rcc.ahb_pre = AHBPrescaler::DIV1;
     config.rcc.apb1_pre = APBPrescaler::DIV2;
     config.rcc.apb2_pre = APBPrescaler::DIV1;
 
     let peripherals = embassy_stm32::init(config);
-    debug!("CPU running @ 72 MHz");
+    debug!("CPU running @ 96 MHz");
 
+    // SPI1 lives on APB2 (96 MHz). The achievable SPI clocks are PCLK/2^n,
+    // so the closest rate <= 36 MHz the bus can produce is 24 MHz, which
+    // is within spec for the ILI9341.
     let mut spi1_config = SpiConfig::default();
-    spi1_config.frequency = Hertz(36_000_000);
+    spi1_config.frequency = Hertz(24_000_000);
     let spi1_bus = Spi::new_blocking_txonly(
         peripherals.SPI1,
         peripherals.PA5,
         peripherals.PA7,
         spi1_config,
     );
-    debug!("SPI1 initialized @ 36 MHz");
+    debug!("SPI1 initialized @ 24 MHz");
 
-    // MCP2515 supports a max SPI clock of 10 MHz, so use that here
+    // MCP2515 supports a max SPI clock of 10 MHz, so use that here.
     let mut spi2_config = SpiConfig::default();
     spi2_config.frequency = Hertz(10_000_000);
     let spi2_bus = Spi::new_blocking(
@@ -79,12 +91,6 @@ async fn main(spawner: Spawner) {
     debug!("SPI2 initialized @ 10 MHz");
 
     // Display setup for TPM408-2.8 (uses ILI9341 driver)
-    //
-    // TODO: Display SPI bus speed
-    //   ILI9341 can do SPI @ 40 MHz, but APB1 maxes out at 36 MHz.
-    //   Consider modifying the hardware so that the display uses SPI2, which
-    //   lives on APB2, to allow the ILI9341 to run at its max SPI clock speed
-    //   since the MCP2515 can only do a max of 10 MHz anyway.
     let display_chip_select = Output::new(peripherals.PA4, Level::High, Speed::VeryHigh);
     let display_dc = Output::new(peripherals.PB0, Level::Low, Speed::VeryHigh);
     let display_reset = Output::new(peripherals.PB1, Level::High, Speed::VeryHigh);
@@ -195,6 +201,7 @@ async fn main(spawner: Spawner) {
 
     spawner.spawn(display::display_update_task(display).expect("Failed to spawn display_task"));
     spawner.spawn(
-        canbus_reader::canbus_reader_task(can_controller).expect("Failed to spawn canbus_reader task"),
+        canbus_reader::canbus_reader_task(can_controller)
+            .expect("Failed to spawn canbus_reader task"),
     );
 }
