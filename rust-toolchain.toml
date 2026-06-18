@@ -1,0 +1,4 @@
+[toolchain]
+channel = "1.96.0"
+components = ["clippy", "rustfmt"]
+targets = ["thumbv7em-none-eabihf"] # STM32F411CEU6 — Cortex-M4F
