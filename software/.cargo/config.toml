@@ -1,0 +1,9 @@
+[target.thumbv7em-none-eabihf]
+runner = "probe-rs run --chip STM32F411CEUx" # Add `--connect-under-reset` if ST-Link wired to RST
+
+[env]
+DEFMT_LOG = "debug"
+
+[alias]
+fw-build = "build --release -p canbus-display --target thumbv7em-none-eabihf"
+fw = "run --release -p canbus-display --target thumbv7em-none-eabihf"

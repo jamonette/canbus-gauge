@@ -1,0 +1,17 @@
+[workspace]
+members  = ["firmware"]
+resolver = "3"
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+
+[workspace.dependencies]
+embedded-graphics = "0.8"
+heapless          = "0.9.2"
+static_cell       = "2.1.1"
+
+[profile.release]
+opt-level = "z"
+debug     = 2
+lto       = true
